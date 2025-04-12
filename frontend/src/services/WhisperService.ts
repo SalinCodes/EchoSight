@@ -21,5 +21,3 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<TranscriptionRes
     transcription: 'This is a simulated response',
   };
 };
-
-// No enrollment function needed for MVP

@@ -1,18 +1,26 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 
 interface TranscriptionDisplayProps {
   transcript: string;
   fontSize?: string;
+  isDarkMode?: boolean;
 }
 
-const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({ 
-  transcript, 
-  fontSize = 'medium'
+const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
+  transcript,
+  fontSize = 'medium',
+  isDarkMode = true
 }) => {
-  const textSizeClass = fontSize === 'small' ? 'text-base' : 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const textSizeClass = fontSize === 'small' ? 'text-base' :
                       fontSize === 'large' ? 'text-xl' : 'text-lg';
-  
-  // Split the transcript by newline characters and map each line to a paragraph
+
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [transcript]);
+
   const formatTranscript = (text: string) => {
     if (!text) return 'Waiting for speech...';
     
@@ -20,10 +28,31 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
       <p key={index} className="mb-2">{line}</p>
     ));
   };
-  
+
   return (
-    <div className={`$'text-gray-100' : 'text-gray-900'} ${textSizeClass}`}>
+    <div
+      ref={containerRef}
+      className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'} ${textSizeClass} w-full h-full overflow-y-auto`}
+      style={{
+        scrollbarWidth: 'thin',
+        scrollbarColor: `${isDarkMode ? 'rgba(71, 85, 105, 0.5) rgba(30, 41, 59, 0.8)' : '#E5E7EB #F9FAFB'}`,
+      }}
+    >
       {formatTranscript(transcript)}
+      <style>
+        {`
+          div::-webkit-scrollbar {
+            width: 8px;
+          }
+          div::-webkit-scrollbar-thumb {
+            background-color: ${isDarkMode ? 'rgba(71, 85, 105, 0.5)' : '#D1D5DB'};
+            border-radius: 4px;
+          }
+          div::-webkit-scrollbar-track {
+            background-color: ${isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#F3F4F6'};
+          }
+        `}
+      </style>
     </div>
   );
 };

@@ -33,13 +33,13 @@ const AudioProcessor: React.FC<AudioProcessorProps> = ({
   const MAX_PRE_BUFFER_FRAMES = Math.ceil((PRE_BUFFER_DURATION_MS / 1000) * SAMPLE_RATE / FRAME_SIZE);
   
   // Simplified speech detection parameters
-  const SPEECH_THRESHOLD_DB = -13; // Fixed threshold in dB
+  const SPEECH_THRESHOLD_DB = -14; // Fixed threshold in dB
   const framesAboveThresholdRef = useRef<number>(0);
   const framesBelowThresholdRef = useRef<number>(0);
   
   // Time constants
   const FRAMES_TO_START_RECORDING = Math.ceil(0.5 * SAMPLE_RATE / FRAME_SIZE); // 0.5s above threshold
-  const FRAMES_TO_STOP_RECORDING = Math.ceil(1.25 * SAMPLE_RATE / FRAME_SIZE); // 2s below threshold
+  const FRAMES_TO_STOP_RECORDING = Math.ceil(1.25 * SAMPLE_RATE / FRAME_SIZE); // 1.25s below threshold
 
   const callbacksRef = useRef({ onAudioLevelChange, onSpeechStart, onSpeechEnd });
   useEffect(() => {
@@ -68,7 +68,7 @@ const AudioProcessor: React.FC<AudioProcessorProps> = ({
     isCurrentlyRecordingRef.current = false;
   }, []);
 
-  // Improved decibel calculation
+  // Decibel calculation
   const calculateDecibels = (dataArray: Uint8Array): number => {
     // Convert byte data to float between 0 and 1
     const floatData = Array.from(dataArray).map(byte => byte / 255);
@@ -113,7 +113,6 @@ const AudioProcessor: React.FC<AudioProcessorProps> = ({
 
       // Simple threshold-based speech detection
       if (decibelLevel >= SPEECH_THRESHOLD_DB) {
-        // Above threshold
         framesAboveThresholdRef.current++;
         framesBelowThresholdRef.current = 0;
         
