@@ -33,7 +33,7 @@ const AudioProcessor: React.FC<AudioProcessorProps> = ({
   const MAX_PRE_BUFFER_FRAMES = Math.ceil((PRE_BUFFER_DURATION_MS / 1000) * SAMPLE_RATE / FRAME_SIZE);
   
   // Simplified speech detection parameters
-  const SPEECH_THRESHOLD_DB = -14; // Fixed threshold in dB
+  const SPEECH_THRESHOLD_DB = -15; // Fixed threshold in dB
   const framesAboveThresholdRef = useRef<number>(0);
   const framesBelowThresholdRef = useRef<number>(0);
   

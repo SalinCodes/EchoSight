@@ -12,6 +12,8 @@ import StatusIndicator from './components/StatusIndicator';
 // --- IMPORT FROM SERVICE FILE ---
 import {
     checkWhisperBackendAvailability,
+    transcribeAudio,
+    enrollPrimaryUser
 } from './services/WhisperService';
 
 const App = () => {
@@ -22,6 +24,12 @@ const App = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [fontSize, setFontSize] = useState('medium');
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [enrollmentStep, setEnrollmentStep] = useState(0); // 0: Idle, 1-4: Recording clip, 5: Processing
+  const [enrollmentMessage, setEnrollmentMessage] = useState<string | null>(null);
+  const enrollmentClips = useRef<Blob[]>([]); // Use ref to store blobs between steps
+  const clipDuration = 10000; // 10 seconds per clip
+  const totalClips = 4;
 
 
   useEffect(() => {
@@ -69,21 +77,38 @@ const App = () => {
     setIsTranscribing(true); // Show processing indicator
     try {
       console.log("Sending audio for transcription...");
-      // For MVP, simulating a response instead of calling the backend
-      setTimeout(() => {
+      const result = await transcribeAudio(audioBlob); // Send to backend service
+
+      if (result.transcription) {
+        console.log("Received transcription:", result.transcription);
+        // Update transcript state
         setTranscript(prev => {
-          const newTranscript = prev + (prev ? '\n' : '') + "This is a simulated response";
+          const newTranscript = prev + (prev ? '\n' : '') + result.transcription;
           console.log("Updated transcript:", newTranscript);
           return newTranscript;
         });
         
+        // Use a more reliable approach with requestAnimationFrame to ensure UI has updated
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             setIsTranscribing(false);
             console.log("Transcription complete, setting isTranscribing to false");
           });
         });
-      }, 1000);
+
+      } else if (result.error) {
+          console.error('Transcription failed:', result.error);
+          setTranscript(prev => {
+            const newTranscript = prev + `\n[Transcription Error: ${result.error}]`;
+            return newTranscript;
+          });
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setIsTranscribing(false);
+              console.log("Transcription error, setting isTranscribing to false");
+            });
+          });
+      }
     } catch (error) {
       console.error('Error during transcription fetch:', error);
       setTranscript(prev => {
@@ -95,7 +120,120 @@ const App = () => {
         console.log("Transcription exception, setting isTranscribing to false");
       });
     }
-  }, [backendAvailable]);
+    }, [backendAvailable]);
+
+  // --- Enrollment Logic ---
+  const recordSingleClip = useCallback(async (clipNumber: number): Promise<Blob | null> => {
+    return new Promise(async (resolve, reject) => {
+      setEnrollmentMessage(`Recording Clip ${clipNumber}/${totalClips} (Speak naturally for ${clipDuration / 1000}s)...`);
+      console.log(`Starting recording for clip ${clipNumber}`);
+
+      let stream: MediaStream | null = null;
+      let recorder: MediaRecorder | null = null;
+      const audioChunks: Blob[] = [];
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          console.log(`Recording stopped for clip ${clipNumber}.`);
+          stream?.getTracks().forEach(track => track.stop()); // Stop microphone access
+          // audioContext?.close(); // Close context if used
+
+          if (audioChunks.length === 0) {
+            console.error(`No audio data recorded for clip ${clipNumber}.`);
+            reject(new Error(`No audio recorded for clip ${clipNumber}. Please ensure microphone is working.`));
+            return;
+          }
+
+          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' }); // Use WAV
+          resolve(audioBlob);
+        };
+
+        recorder.onerror = (event) => {
+            console.error("MediaRecorder error:", event);
+            stream?.getTracks().forEach(track => track.stop());
+            reject(new Error("Recording failed due to a recorder error."));
+        };
+
+        recorder.start();
+
+        // Stop recording after the specified duration
+        setTimeout(() => {
+          if (recorder?.state === "recording") {
+            recorder.stop();
+          }
+        }, clipDuration);
+
+      } catch (error) {
+        console.error(`Error during recording clip ${clipNumber}:`, error);
+        stream?.getTracks().forEach(track => track.stop()); // Ensure tracks are stopped
+        // audioContext?.close(); // Close context if used
+        reject(error instanceof Error ? error : new Error('Could not start recording'));
+      }
+    });
+  }, []); // No dependencies needed here
+
+
+  const handleEnrollProcess = useCallback(async () => {
+    if (isEnrolling) return;
+
+    setIsEnrolling(true);
+    setEnrollmentStep(1);
+    enrollmentClips.current = []; // Clear previous attempts
+    setEnrollmentMessage(null); // Clear previous messages
+
+    try {
+      for (let i = 1; i <= totalClips; i++) {
+        setEnrollmentStep(i); // Update step for UI feedback
+        const blob = await recordSingleClip(i);
+        if (blob) {
+          enrollmentClips.current.push(blob);
+          console.log(`Clip ${i} recorded, size: ${blob.size}`);
+        } else {
+          // Should have been caught by reject, but as safety
+          throw new Error(`Recording failed for clip ${i}.`);
+        }
+        // Optional small delay between recordings
+        if (i < totalClips) {
+            setEnrollmentMessage(`Prepare for Clip ${i + 1}/${totalClips}...`);
+            await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5s pause
+        }
+      }
+
+      // All clips recorded, now send to backend
+      setEnrollmentStep(totalClips + 1); // Processing step
+      setEnrollmentMessage("Processing enrollment audio...");
+      console.log(`Sending ${enrollmentClips.current.length} clips to backend...`);
+
+      const result = await enrollPrimaryUser(enrollmentClips.current); // Pass array of blobs
+
+      if (result.success) {
+        console.log("Enrollment successful:", result.message);
+        setEnrollmentMessage(result.message || "Enrollment successful!");
+      } else {
+        console.error("Enrollment failed:", result.error);
+        setEnrollmentMessage(`Enrollment failed: ${result.error || 'Unknown error'}`);
+      }
+
+    } catch (error) {
+      console.error("Error during enrollment process:", error);
+      setEnrollmentMessage(`Enrollment cancelled: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
+    } finally {
+      // Reset state regardless of success or failure
+      setIsEnrolling(false);
+      setEnrollmentStep(0);
+      enrollmentClips.current = []; // Clear blobs
+      // Keep the final success/error message visible for a bit? Or clear it?
+      // setTimeout(() => setEnrollmentMessage(null), 5000); // Example: clear after 5s
+    }
+  }, [isEnrolling, recordSingleClip]); // Add dependencies
 
   // Toggle listening state
   const toggleListening = useCallback(() => {
@@ -136,6 +274,16 @@ const App = () => {
 
   const { bgColor, textColorClass, gradientCenterColor } = getBackgroundAndTextColors();
   const radialGradientStyle = `radial-gradient(circle at center, ${gradientCenterColor} 0%, ${bgColor} 70%)`;
+
+  const getEnrollButtonText = () => {
+    if (enrollmentStep > 0 && enrollmentStep <= totalClips) {
+      return `Recording Clip ${enrollmentStep}/${totalClips}...`;
+    }
+    if (enrollmentStep === totalClips + 1) {
+      return 'Processing...';
+    }
+    return `Enroll Voice (${totalClips}x${clipDuration / 1000}s)`;
+  };
 
   return (
     <div
@@ -189,6 +337,7 @@ const App = () => {
                     /> 
                   </div>
                   {/* Status */}
+                  {/* Status Indicator - Moved up by adding negative margin */}
                   <div className="absolute mb-10 -bottom-0 left-1/2 transform -translate-x-1/2"> 
                     <StatusIndicator 
                       isListening={isListening} 
@@ -198,6 +347,29 @@ const App = () => {
                   </div>
                 </motion.div>
               </AnimatePresence>
+
+              {/* Enroll Button & Status */}
+              <div className="mt-4 mb-4 flex flex-col items-center space-y-2 min-h-[60px]"> {/* Added min-height */}
+                 <button
+                   onClick={handleEnrollProcess} // Use the new handler
+                   disabled={isEnrolling || isListening} // Disable if enrolling or already listening
+                   className={`px-6 py-2 rounded-full text-white font-semibold shadow-md transition-colors duration-200 ${
+                     isEnrolling
+                       ? 'bg-yellow-600 cursor-not-allowed animate-pulse' // Keep pulse for visual feedback
+                       : isListening
+                       ? 'bg-gray-500 cursor-not-allowed'
+                       : 'bg-blue-600 hover:bg-blue-700'
+                   }`}
+                 >
+                   {getEnrollButtonText()} {/* Dynamic button text */}
+                 </button>
+                 {/* Display enrollment message */}
+                 {enrollmentMessage && (
+                   <p className={`text-sm text-center ${enrollmentMessage.toLowerCase().includes('error') || enrollmentMessage.toLowerCase().includes('failed') || enrollmentMessage.toLowerCase().includes('cancelled') ? 'text-red-400' : 'text-green-400'}`}>
+                     {enrollmentMessage}
+                   </p>
+                 )}
+              </div>
             </div>
 
             {/* Transcription display */}

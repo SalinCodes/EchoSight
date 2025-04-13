@@ -3,13 +3,11 @@ import React, { useRef, useEffect } from 'react';
 interface TranscriptionDisplayProps {
   transcript: string;
   fontSize?: string;
-  isDarkMode?: boolean;
 }
 
 const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
   transcript,
-  fontSize = 'medium',
-  isDarkMode = true
+  fontSize = 'medium'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textSizeClass = fontSize === 'small' ? 'text-base' :
@@ -32,10 +30,10 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`${isDarkMode ? 'text-gray-100' : 'text-gray-900'} ${textSizeClass} w-full h-full overflow-y-auto`}
+      className={`'text-gray-100' : 'text-gray-900'} ${textSizeClass} w-full h-full overflow-y-auto`}
       style={{
         scrollbarWidth: 'thin',
-        scrollbarColor: `${isDarkMode ? 'rgba(71, 85, 105, 0.5) rgba(30, 41, 59, 0.8)' : '#E5E7EB #F9FAFB'}`,
+        scrollbarColor: `'rgba(71, 85, 105, 0.5) rgba(30, 41, 59, 0.8)' : '#E5E7EB #F9FAFB'}`,
       }}
     >
       {formatTranscript(transcript)}
@@ -45,11 +43,11 @@ const TranscriptionDisplay: React.FC<TranscriptionDisplayProps> = ({
             width: 8px;
           }
           div::-webkit-scrollbar-thumb {
-            background-color: ${isDarkMode ? 'rgba(71, 85, 105, 0.5)' : '#D1D5DB'};
+            background-color: 'rgba(71, 85, 105, 0.5)' : '#D1D5DB'};
             border-radius: 4px;
           }
           div::-webkit-scrollbar-track {
-            background-color: ${isDarkMode ? 'rgba(30, 41, 59, 0.8)' : '#F3F4F6'};
+            background-color: 'rgba(30, 41, 59, 0.8)' : '#F3F4F6'};
           }
         `}
       </style>
