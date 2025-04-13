@@ -18,8 +18,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from speechbrain.inference.speaker import EncoderClassifier
 import requests
 from msclap import CLAP
-from PIL import Image, ImageDraw, ImageFont
-import base64
 import io
 
 load_dotenv()
@@ -278,61 +276,6 @@ def detect_environment_sound(audio_path):
         print(f"Error in environment sound detection: {e}")
         traceback.print_exc()
         return None, 0.0
-    
-# Convert transcription to image and send to ESP-32
-def text_to_base64_image_payload(text, width=128, height=64):
-    """Convert text to a base64 image payload suitable for ESP32 OLED"""
-
-    # Create a white monochrome image
-    image = Image.new('1', (width, height), 1)
-    draw = ImageDraw.Draw(image)
-
-    try:
-        font = ImageFont.truetype("arial.ttf", 9)
-    except IOError:
-        font = ImageFont.load_default()
-
-    lines = []
-    current_line = ""
-    paragraphs = text.split('\n')
-    for paragraph in paragraphs:
-        words = paragraph.split()
-        for word in words:
-            test_line = current_line + " " + word if current_line else word
-            if draw.textlength(test_line, font=font) <= width - 4:
-                current_line = test_line
-            else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
-            current_line = ""
-
-    # Fit lines into the screen height
-    line_height = 11
-    max_lines = height // line_height
-    lines = lines[:max_lines]
-
-    # Draw each line
-    y = 1
-    for line in lines:
-        draw.text((1, y), line, font=font, fill=0)
-        y += line_height
-
-    # Convert to raw bytes
-    bitmap_bytes = image.tobytes()
-
-    # Encode as base64
-    encoded_data = base64.b64encode(bitmap_bytes).decode('utf-8')
-
-    # Return a full JSON-compatible payload
-    return {
-        "type": "image",
-        "width": width,
-        "height": height,
-        "data": encoded_data
-    }
-
 
 # --- API Endpoints ---
 
@@ -820,9 +763,7 @@ def transcribe():
         # In your transcribe function, replace the ESP32 sending part:
         print("Sending to ESP-32...")
         try:
-            # Send as binary data directly
-            payload = text_to_base64_image_payload("यो एउटा परीक्षण सन्देश हो। नेपाली युनिकोड लेख्न सकिन्छ।")
-            res = requests.post("http://<ESP32-IP>/display", json=payload)
+            res = requests.post(ESP32_URL, data=final_transcription)
             print("Image sent to ESP-32 successfully.")
         except requests.exceptions.RequestException as e:
             print(f"Error sending to ESP-32: {e}")
