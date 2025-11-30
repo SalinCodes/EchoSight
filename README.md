@@ -1,4 +1,7 @@
 # EchoSight
+EchoSight features lightweight ESP32 powered smart glasses equipped with a compact OLED display that converts surrounding sounds into clear visual cues. Built for comfort and everyday use, the glasses help users interpret speech and environmental noise through simple icons, text, and direction indicators. This allows 
+individuals with hearing impairments to navigate their surroundings with greater confidence, awareness, and safety.
+
 
 ## Problem Statement
 EchoSight addresses the challenges faced by individuals with hearing impairments in perceiving and understanding conversation & environmental sounds. By leveraging advanced audio processing and machine learning techniques, our solution transforms audio cues into visual information displayed through OLED glasses, enhancing spatial awareness and safety for users.
